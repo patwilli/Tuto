@@ -1,0 +1,50 @@
+```
+# Interfaces
+ext_if = "em0"
+admin_if = "em1"
+server_if = "em2"
+employee_if = "em3"
+ 
+# Networks
+admin_net = "192.168.42.0/26"
+server_net = "192.168.42.64/26"
+employee_net = "192.168.42.128/26"
+ 
+# Set default deny policy
+block all
+ 
+# Allow Loopback
+set skip on lo
+ 
+# NAT for outbound traffic
+nat on $ext_if from { $admin_net, $server_net, $employee_net } to any nat-to ($ext_if)
+ 
+# Allow administration LAN to reach server network on all ports
+pass in on $admin_if from $admin_net to $server_net
+ 
+# Allow employee LAN to reach server network only on HTTP and HTTPS
+pass in on $employee_if proto tcp from $employee_net to $server_net port { http https }
+ 
+# Allow all LANs to go out on the internet
+pass out on $ext_if from { $admin_net $server_net $employee_net } to any
+ 
+# Allow self-firewall to go out the internet
+pass out on $ext_if from ($ext_if) to any
+ 
+# Allow ping (ICMP echo request and reply)
+pass in proto icmp from { $admin_net $server_net $employee_net } to any icmp-type echoreq
+pass out proto icmp from { $admin_net $server_net $employee_net } to any icmp-type echoreq
+ 
+# Allow DNS
+pass proto { udp, tcp } from any to any port 53 keep state
+ 
+# Allow HTTP and HTTPS
+pass proto { udp, tcp } from any to any port 80 keep state
+pass proto { udp, tcp } from any to any port 443 keep state
+ 
+# pass out proto udp from ($ext_if) to any port 53
+# pass out on $ext_if proto { udp tcp } from { $admin_net $server_net $employee_net } to any port 53 keep state
+ 
+# Allow established connections
+pass in quick on $ext_if proto tcp from any to { $admin_net $server_net $employee_net } flags S/SA keep state
+```
