@@ -1,50 +1,55 @@
-```
 # Interfaces
-ext_if = "em0"
-admin_if = "em1"
-server_if = "em2"
-employee_if = "em3"
- 
-# Networks
-admin_net = "192.168.42.0/26"
-server_net = "192.168.42.64/26"
-employee_net = "192.168.42.128/26"
- 
-# Set default deny policy
+ext_if = "em0"          # Interface externe (connexion à Internet via NAT)
+admin_if = "em1"        # Interface pour le LAN Administration
+server_if = "em2"       # Interface pour le LAN Serveur
+employee_if = "em3"     # Interface pour le LAN Employé
+
+# Réseaux
+admin_net = "192.168.42.0/26"      # Sous-réseau Administration
+server_net = "192.168.42.64/26"    # Sous-réseau Serveur
+employee_net = "192.168.42.128/26" # Sous-réseau Employé
+
+# Politique par défaut : tout bloquer
 block all
- 
-# Allow Loopback
+
+# Permettre le trafic sur l'interface loopback (localhost)
 set skip on lo
- 
-# NAT for outbound traffic
+
+# NAT : Permettre la sortie des sous-réseaux internes vers Internet
 nat on $ext_if from { $admin_net, $server_net, $employee_net } to any nat-to ($ext_if)
- 
-# Allow administration LAN to reach server network on all ports
+
+# Autoriser le LAN Administration à accéder au LAN Serveur sur tous les ports
 pass in on $admin_if from $admin_net to $server_net
- 
-# Allow employee LAN to reach server network only on HTTP and HTTPS
+
+# Autoriser le LAN Employé à accéder au LAN Serveur uniquement en HTTP/HTTPS
 pass in on $employee_if proto tcp from $employee_net to $server_net port { http https }
- 
-# Allow all LANs to go out on the internet
-pass out on $ext_if from { $admin_net $server_net $employee_net } to any
- 
-# Allow self-firewall to go out the internet
+
+# Communication entre sous-réseaux
+# Autoriser le LAN Administration à accéder au LAN Serveur et au LAN Employé
+pass in on $admin_if from $admin_net to { $server_net $employee_net }
+
+# Autoriser le LAN Serveur à accéder au LAN Administration et au LAN Employé
+pass in on $server_if from $server_net to { $admin_net $employee_net }
+
+# Autoriser le LAN Employé à accéder au LAN Administration et au LAN Serveur
+pass in on $employee_if from $employee_net to { $admin_net $server_net }
+
+# Autoriser tous les sous-réseaux à sortir vers Internet
+pass out on $ext_if from { $admin_net, $server_net, $employee_net } to any
+
+# Autoriser le firewall lui-même à sortir vers Internet
 pass out on $ext_if from ($ext_if) to any
- 
-# Allow ping (ICMP echo request and reply)
-pass in proto icmp from { $admin_net $server_net $employee_net } to any icmp-type echoreq
-pass out proto icmp from { $admin_net $server_net $employee_net } to any icmp-type echoreq
- 
-# Allow DNS
+
+# Autoriser les requêtes ping (ICMP)
+pass in proto icmp from { $admin_net, $server_net, $employee_net } to any icmp-type echoreq
+pass out proto icmp from { $admin_net, $server_net, $employee_net } to any icmp-type echoreq
+
+# Autoriser les requêtes DNS (port 53 en UDP et TCP)
 pass proto { udp, tcp } from any to any port 53 keep state
- 
-# Allow HTTP and HTTPS
+
+# Autoriser HTTP (port 80) et HTTPS (port 443)
 pass proto { udp, tcp } from any to any port 80 keep state
 pass proto { udp, tcp } from any to any port 443 keep state
- 
-# pass out proto udp from ($ext_if) to any port 53
-# pass out on $ext_if proto { udp tcp } from { $admin_net $server_net $employee_net } to any port 53 keep state
- 
-# Allow established connections
-pass in quick on $ext_if proto tcp from any to { $admin_net $server_net $employee_net } flags S/SA keep state
-```
+
+# Autoriser les connexions déjà établies
+pass in quick on $ext_if proto tcp from any to { $admin_net, $server_net, $employee_net } flags S/SA keep state
